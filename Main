@@ -1,0 +1,778 @@
+-- // Library
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/refs/heads/main/Library.lua'))()
+local ThemeManager = loadstring(game:HttpGet('https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/refs/heads/main/addons/ThemeManager.lua'))()
+local SaveManager = loadstring(game:HttpGet('https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/refs/heads/main/addons/SaveManager.lua'))()
+local ScriptName = "PIZDEC HOOK"
+
+-- // Services
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+-- // Variables
+local CurCamera = workspace.CurrentCamera
+local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
+local FindFirstChild = game.FindFirstChild
+local GetPlayers = Players.GetPlayers
+local GetMouseLocation = UIS.GetMouseLocation
+local WorldToScreen = CurCamera.WorldToScreenPoint
+local WorldToViewport = CurCamera.WorldToViewportPoint
+local GetPartsObscuringTarget = CurCamera.GetPartsObscuringTarget
+local FovCircle = Drawing.new("Circle")
+
+-- // Tables
+local Settings = {
+    Aimlock = false;
+    Aiming = false;
+    Silent = false;
+    FirstPersonOnly = false;
+    TriggerBot = false;
+    Spinbot = false;
+    VelocityS = false;
+    Spinbotspeed = 90;
+    TriggerBotDelay = 0;
+    AimbotSpeed = 1;
+    AimbotPart = "Head";
+    AimbotDrawFOV = false;
+    AimbotFovColor = Color3.new(1, 1, 1);
+    AimbotFovRadius = 10;
+    Esp_Box = false;
+    Glow = false;
+    Chams = false;
+    Esp_Health = false;
+    Esp_Health_Color = Color3.new(0, 1, 0);
+    Esp_Box_Color = Color3.new(1, 1, 1);
+    Chams_Color = Color3.new(1, 1, 1);
+    Glow_Color = Color3.new(1, 1, 1);
+    GlobalShadows = true;
+    Brightness = 2;
+    CFWalk = 0;
+    ClockTime = 14;
+    Bypass = false;
+    BreakVelocity = false;
+    AntiFling = false;
+}
+
+local ExpectedArguments = {
+    Raycast = {
+        ArgCountRequired = 3,
+        Args = {
+            "Instance", "Vector3", "Vector3", "RaycastParams"
+        }
+    }
+}
+
+local loaded_Sound = Instance.new("Sound", game:GetService("SoundService"))
+loaded_Sound.Volume = 1
+loaded_Sound.Looped = false
+loaded_Sound.SoundId = "rbxassetid://139603854451378"
+loaded_Sound:Play()
+
+local Window = Library:CreateWindow({
+    Title = ScriptName,
+    Center = true,
+    AutoShow = true,
+    TabPadding = 8,
+    MenuFadeTime = 0.2
+})
+
+local Tabs = {
+    Combat = Window:AddTab('Combat'),
+    Visuals = Window:AddTab('Visuals'),
+    Misc = Window:AddTab('Misc'),
+    Config = Window:AddTab('Config'),
+}
+
+-- // GroupBoxes
+local AimLGB = Tabs.Combat:AddLeftGroupbox('Aimbot')
+local TriggerRGB = Tabs.Combat:AddRightGroupbox('Triggerbot')
+local SpinbotRGB = Tabs.Combat:AddRightGroupbox('Spinbot')
+local EspLGB = Tabs.Visuals:AddLeftGroupbox('ESP')
+local WorldRGB = Tabs.Visuals:AddRightGroupbox('World')
+local LuaRGB = Tabs.Config:AddRightGroupbox('Lua')
+local OtherRGB = Tabs.Misc:AddRightGroupbox('Other')
+local MovementLGB = Tabs.Misc:AddLeftGroupbox('Movement')
+
+-- // Combat
+AimLGB:AddToggle('Aimlock', {
+    Text = 'Aimlock',
+    Default = Settings.Aimlock,
+    Callback = function(Value)
+    Settings.Aimlock = Value
+    end
+})
+
+AimLGB:AddToggle('SilentAim', {
+    Text = 'Silent',
+    Default = Settings.Silent,
+    Callback = function(Value)
+    Settings.Silent = Value
+    end
+})
+
+AimLGB:AddToggle('FirstpersonOnly', {
+    Text = 'First Person Only',
+    Default = Settings.FirstPersonOnly,
+    Callback = function(Value)
+    Settings.FirstPersonOnly = Value
+    end
+})
+
+AimLGB:AddToggle('Show Fov', {
+    Text = 'Show Fov',
+    Default = Settings.AimbotDrawFOV,
+    Callback = function(Value)
+    Settings.AimbotDrawFOV = Value
+    end
+})
+
+AimLGB:AddLabel('Fov Color'):AddColorPicker('Fov Color', {
+    Default = Settings.AimbotFovColor,
+    Title = 'Fov Color',
+    Transparency = 0,
+    Callback = function(Value)
+    Settings.AimbotFovColor = Value
+    end
+})
+
+AimLGB:AddSlider('Fov', {
+    Text = 'Fov',
+    Default = Settings.AimbotFovRadius,
+    Min = 1,
+    Max = 720,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+    Settings.AimbotFovRadius = Value * 2
+    end
+})
+
+AimLGB:AddSlider('AimSpeed', {
+    Text = 'Speed',
+    Default = Settings.AimbotSpeed,
+    Min = 0.1,
+    Max = 1,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+    Settings.AimbotSpeed = Value
+    end
+})
+
+AimLGB:AddDropdown('Hitbox', {
+    Values = {'Head', 'HumanoidRootPart'},
+    Default = Settings.AimbotPart,
+    Multi = false,
+    Text = 'Hitbox',
+    Callback = function(Value)
+    Settings.AimbotPart = Value
+    end
+})
+
+TriggerRGB:AddToggle('TriggerBot', {
+    Text = 'Trigger Bot',
+    Default = Settings.TriggerBot,
+    Callback = function(Value)
+    Settings.TriggerBot = Value
+    end
+})
+
+TriggerRGB:AddSlider('TriggerBotDelay', {
+    Text = 'Delay',
+    Default = Settings.TriggerBotDelay,
+    Min = 0,
+    Max = 1,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+    Settings.TriggerBotDelay = Value
+    end
+})
+
+SpinbotRGB:AddToggle('Spinbot', {
+    Text = 'Spinbot',
+    Default = Settings.Spinbot,
+    Callback = function(Value)
+    Settings.Spinbot = Value
+    end
+})
+
+SpinbotRGB:AddToggle('VelocityS', {
+    Text = 'Velocity Mode',
+    Default = Settings.VelocityS,
+    Callback = function(Value)
+    Settings.VelocityS = Value
+    end
+})
+
+SpinbotRGB:AddSlider('SpinbotSpeed', {
+    Text = 'Speed',
+    Default = Settings.Spinbotspeed,
+    Min = 1,
+    Max = 90,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+    Settings.Spinbotspeed = Value
+    end
+})
+
+-- // Visuals
+EspLGB:AddToggle('Box_Esp', {
+    Text = 'Box',
+    Default = Settings.Esp_Box,
+    Callback = function(Value)
+    Settings.Esp_Box = Value
+    end
+})
+
+EspLGB:AddToggle('Health_Esp', {
+    Text = 'Health',
+    Default = Settings.Esp_Health,
+    Callback = function(Value)
+    Settings.Esp_Health = Value
+    end
+})
+
+EspLGB:AddToggle('Chams_Esp', {
+    Text = 'Chams',
+    Default = Settings.Chams,
+    Callback = function(Value)
+    Settings.Chams = Value
+    end
+})
+
+EspLGB:AddToggle('Glow', {
+    Text = 'Glow',
+    Default = Settings.Glow,
+    Callback = function(Value)
+    Settings.Glow = Value
+    end
+})
+
+EspLGB:AddLabel('Box color'):AddColorPicker('Box_Esp_color', {
+    Default = Settings.Esp_Box_Color,
+    Title = 'Box Color',
+    Transparency = 0,
+    Callback = function(Value)
+    Settings.Esp_Box_Color = Value
+    end
+})
+
+EspLGB:AddLabel('Health color'):AddColorPicker('Health_Esp_color', {
+    Default = Settings.Esp_Health_Color,
+    Title = 'Health Color',
+    Transparency = 0,
+    Callback = function(Value)
+    Settings.Esp_Health_Color = Value
+    end
+})
+
+EspLGB:AddLabel('Chams color'):AddColorPicker('Chams_Esp_color', {
+    Default = Settings.Chams_Color,
+    Title = 'Chams Color',
+    Transparency = 0,
+    Callback = function(Value)
+    Settings.Chams_Color = Value
+    end
+})
+
+EspLGB:AddLabel('Glow color'):AddColorPicker('Glow_Esp_color', {
+    Default = Settings.Glow_Color,
+    Title = 'Glow Color',
+    Transparency = 0,
+    Callback = function(Value)
+    Settings.Glow_Color = Value
+    end
+})
+
+WorldRGB:AddToggle('GlobalShadows', {
+    Text = 'Global Shadows',
+    Default = Settings.GlobalShadows,
+    Callback = function(Value)
+    game:GetService("Lighting").GlobalShadows = Value
+    end
+})
+
+WorldRGB:AddSlider('Brightness', {
+    Text = 'Brightness',
+    Default = Settings.Brightness,
+    Min = 0,
+    Max = 99,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+    game:GetService("Lighting").Brightness = Value
+    end
+})
+
+WorldRGB:AddSlider('ClockTime', {
+    Text = 'Clock Time',
+    Default = Settings.ClockTime,
+    Min = 0,
+    Max = 24,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+    game:GetService("Lighting").ClockTime = Value
+    end
+})
+
+-- // Misc
+LuaRGB:AddButton({
+    Text = 'Adonis Bypass(Pixeluted)',
+    Func = function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/Pixeluted/adoniscries/refs/heads/main/Source.lua'))()
+    Settings.Bypass = true
+    print(Settings.Bypass)
+    end,
+    DoubleClick = false,
+})
+
+LuaRGB:AddButton({
+    Text = 'Adonis Bypass(xiaomao8090)',
+    Func = function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/xiaomao8090/Adonis-Bypass-Framework/refs/heads/master/AdonisBypass.lua'))()
+    Settings.Bypass = true
+    print(Settings.Bypass)
+    end,
+    DoubleClick = false,
+})
+
+LuaRGB:AddButton({
+    Text = 'Infinite Yield',
+    Func = function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+    end,
+    DoubleClick = false,
+})
+
+OtherRGB:AddToggle('Anti-Fling', {
+    Text = 'Anti Fling',
+    Default = Settings.AntiFling,
+    Callback = function(Value)
+    Settings.AntiFling = Value
+    end
+})
+
+OtherRGB:AddToggle('Break-Velocity', {
+    Text = 'Break Velocity',
+    Default = Settings.BreakVelocity,
+    Callback = function(Value)
+    Settings.BreakVelocity = Value
+    end
+})
+
+OtherRGB:AddButton({
+    Text = 'Potato Mode',
+    Func = function()
+    local Terrain = workspace:FindFirstChildWhichIsA("Terrain")
+    local Lighting = game:GetService("Lighting")
+	Terrain.WaterWaveSize = 0
+	Terrain.WaterWaveSpeed = 0
+	Terrain.WaterReflectance = 0
+	Terrain.WaterTransparency = 1
+	Lighting.FogEnd = 9e9
+	Lighting.FogStart = 9e9
+	settings().Rendering.QualityLevel = 1
+	for _, v in pairs(game:GetDescendants()) do
+	if v:IsA("BasePart") then
+	v.CastShadow = false
+	v.Material = "Plastic"
+	v.Reflectance = 0
+	v.BackSurface = "SmoothNoOutlines"
+	v.BottomSurface = "SmoothNoOutlines"
+	v.FrontSurface = "SmoothNoOutlines"
+	v.LeftSurface = "SmoothNoOutlines"
+	v.RightSurface = "SmoothNoOutlines"
+	v.TopSurface = "SmoothNoOutlines"
+	elseif v:IsA("Decal") then
+	v.Transparency = 1
+	v.Texture = ""
+	elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+	v.Lifetime = NumberRange.new(0)
+		end
+	end
+	for _, v in pairs(Lighting:GetDescendants()) do
+	if v:IsA("PostEffect") then
+	v.Enabled = false
+		end
+	end
+	workspace.DescendantAdded:Connect(function(child)
+	task.spawn(function()
+	if child:IsA("ForceField") or child:IsA("Sparkles") or child:IsA("Smoke") or child:IsA("Fire") or child:IsA("Beam") then
+    RunService.Heartbeat:Wait()
+	child:Destroy()
+	elseif child:IsA("BasePart") then
+	child.CastShadow = false
+			    end
+		    end)
+	    end)
+    end,
+    DoubleClick = false,
+})
+
+
+MovementLGB:AddSlider('CFWalk', {
+    Text = 'CFrame Walk',
+    Default = Settings.CFWalk,
+    Min = 0,
+    Max = 10,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+    Settings.CFWalk = Value
+    end
+})
+
+-- // Ui
+Library:SetWatermarkVisibility(true)
+
+local FrameTimer = tick()
+local FrameCounter = 0;
+local FPS = 60;
+
+local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
+    FrameCounter += 1;
+
+    if (tick() - FrameTimer) >= 1 then
+        FPS = FrameCounter;
+        FrameTimer = tick();
+        FrameCounter = 0;
+    end;
+
+    Library:SetWatermark((ScriptName..' | %s fps | %s ms'):format(
+        math.floor(FPS),
+        math.floor(game:GetService('Stats').Network.ServerStatsItem['Data Ping']:GetValue())
+    ));
+end);
+
+Library:OnUnload(function()
+    WatermarkConnection:Disconnect()
+    Library.Unloaded = true
+end)
+
+-- // Functions
+UIS.InputBegan:Connect(function(key)
+    if key.UserInputType == Enum.UserInputType.MouseButton2 then
+    Settings.Aiming = true
+    end
+end)
+
+UIS.InputEnded:Connect(function(key)
+    if key.UserInputType == Enum.UserInputType.MouseButton2 then
+    Settings.Aiming = false
+    end
+end)
+
+local function ValidateArguments(Args, RayMethod)
+    local Matches = 0
+    if #Args < RayMethod.ArgCountRequired then
+    return false
+    end
+    for Pos, Argument in next, Args do
+    if typeof(Argument) == RayMethod.Args[Pos] then
+    Matches = Matches + 1
+        end
+    end
+    return Matches >= RayMethod.ArgCountRequired
+end
+
+local function getDirection(Origin, Position)
+    return (Position - Origin).Unit * 1000
+end
+
+local function isInFirstPerson(character)
+   if character.Head.LocalTransparencyModifier == 1 then
+   return true
+   else
+   return false
+   end
+end
+
+local function getPositionOnScreen(Vector)
+    local Vec3, OnScreen = WorldToScreen(CurCamera, Vector)
+    return Vector2.new(Vec3.X, Vec3.Y), OnScreen
+end
+
+local function getClosestPlayer()
+    if not Settings.AimbotPart then return end
+    local Closest
+    local DistanceToMouse
+    for _, plr in next, GetPlayers(Players) do
+        if plr == Player then continue end
+
+        local char = plr.Character
+        if not char then continue end
+
+        local HumanoidRootPart = FindFirstChild(char, "HumanoidRootPart")
+        local Humanoid = FindFirstChild(char, "Humanoid")
+        if not HumanoidRootPart or not Humanoid or Humanoid and Humanoid.Health <= 0 then continue end
+
+        local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
+        if not OnScreen then continue end
+
+        local Distance = (GetMouseLocation(UIS) - ScreenPosition).Magnitude
+        if Distance <= (DistanceToMouse or Settings.AimbotFovRadius or 2000) then
+            Closest = (char[Settings.AimbotPart])
+            DistanceToMouse = Distance
+        end
+    end
+    return Closest
+end
+
+function ESP(Target)
+    local ESPConnector;
+
+	local BoxOutline = Drawing.new("Square")
+	BoxOutline.Visible = false
+	BoxOutline.Color = Color3.new(1,1,1)
+	BoxOutline.Thickness = 3
+	BoxOutline.Transparency = 1
+	BoxOutline.Filled = false
+
+	local Box = Drawing.new("Square")
+	Box.Visible = false
+	Box.Color = Color3.new(1,1,1)
+	Box.Thickness = 1
+	Box.Transparency = 1
+	Box.Filled = false
+
+    local HealthBarOutline = Drawing.new("Square")
+    HealthBarOutline.Thickness = 3
+    HealthBarOutline.Filled = false
+    HealthBarOutline.Color = Color3.new(0, 0, 0)
+    HealthBarOutline.Transparency = 1
+    HealthBarOutline.Visible = false
+
+    local HealthBar = Drawing.new("Square")
+    HealthBar.Thickness = 1
+    HealthBar.Filled = false
+    HealthBar.Color = Color3.new(0, 1, 0)
+    HealthBar.Transparency = 1
+    HealthBar.Visible = false
+
+    local Highlight = Instance.new("Highlight")
+    Highlight.Name = "AshrainH"
+    Highlight.Enabled = false
+    Highlight.FillColor = Color3.new(1, 1, 1)
+    Highlight.OutlineTransparency = 1
+    Highlight.FillTransparency = 1
+
+	function UpdateESP()
+	   ESPConnector = RunService.RenderStepped:Connect(function()
+	   if Target.Character ~= nil and Target.Character:FindFirstChild("Humanoid") ~= nil and Target.Character:FindFirstChild("HumanoidRootPart") ~= nil and Target ~= Player and Target.Character.Humanoid.Health > 0 then
+				local Vector, onScreen = CurCamera:WorldToViewportPoint(Target.Character.HumanoidRootPart.Position)
+
+				local RootPart = Target.Character.HumanoidRootPart
+				local Head = Target.Character.Head
+				local RootPosition, RootVis = WorldToViewport(CurCamera, RootPart.Position)
+				local HeadPosition = WorldToViewport(CurCamera, Head.Position + Vector3.new(0, 0.5, 0))
+				local LegPosition = WorldToViewport(CurCamera, RootPart.Position - Vector3.new(0, 3, 0))
+                
+                if not Target.Character:FindFirstChild("AshrainH") then
+                Highlight.Parent = Target.Character
+                end
+
+				if onScreen then
+					BoxOutline.Size = Vector2.new(3000 / RootPosition.Z, HeadPosition.Y - LegPosition.Y)
+					BoxOutline.Position = Vector2.new(RootPosition.X - BoxOutline.Size.X / 2, RootPosition.Y - BoxOutline.Size.Y / 2)
+					BoxOutline.Visible = Settings.Esp_Box
+                    BoxOutline.Color = Settings.Esp_Box_Color
+
+                    HealthBarOutline.Size = Vector2.new(2, (HeadPosition.Y - LegPosition.Y))
+                    HealthBarOutline.Position = BoxOutline.Position - Vector2.new(6, 0)
+                    HealthBarOutline.Visible = Settings.Esp_Health
+
+                    HealthBar.Size = Vector2.new(2, (HeadPosition.Y - LegPosition.Y) / (Target.Character.Humanoid.MaxHealth / math.clamp(Target.Character.Humanoid.Health, 0, Target.Character.Humanoid.MaxHealth)))
+                    HealthBar.Position = BoxOutline.Position - Vector2.new(6, 0)
+                    HealthBar.Color = Settings.Esp_Health_Color
+                    HealthBar.Visible = Settings.Esp_Health
+
+                    Highlight.Enabled = true
+                    Highlight.OutlineColor = Settings.Glow_Color
+                    Highlight.FillColor = Settings.Chams_Color
+
+					Box.Size = Vector2.new(3000 / RootPosition.Z, HeadPosition.Y - LegPosition.Y)
+					Box.Position = Vector2.new(RootPosition.X - Box.Size.X / 2, RootPosition.Y - Box.Size.Y / 2)
+					Box.Visible = Settings.Esp_Box
+                    Box.Color = Settings.Esp_Box_Color
+
+                    if Settings.Glow then
+                    Highlight.OutlineTransparency = 0
+                    else
+                    Highlight.OutlineTransparency = 1
+                    end
+                    if Settings.Chams then
+                    Highlight.FillTransparency = 0
+                    else
+                    Highlight.FillTransparency = 1
+                    end
+				else
+					BoxOutline.Visible = false
+					Box.Visible = false
+                    HealthBar.Visible = false
+                    HealthBarOutline.Visible = false
+				end
+			else
+				BoxOutline.Visible = false
+				Box.Visible = false
+                HealthBar.Visible = false
+                HealthBarOutline.Visible = false
+			end
+		end)
+	end
+	coroutine.wrap(UpdateESP)()
+end
+
+for _, v in pairs(Players:GetPlayers()) do
+    if v.Name ~= Players.LocalPlayer.Name then
+    coroutine.wrap(ESP)(v)
+    end
+end
+
+Players.PlayerAdded:Connect(function(v)
+    task.delay(1, function()
+    coroutine.wrap(ESP)(v)
+    end)
+end)
+
+-- // Aimlock
+RunService.RenderStepped:Connect(function()
+   local MousePosition = UIS:GetMouseLocation()
+   FovCircle.Position = Vector2.new(MousePosition.X, MousePosition.Y)
+   FovCircle.Visible = Settings.AimbotDrawFOV
+   FovCircle.Radius = Settings.AimbotFovRadius
+   FovCircle.Color = Settings.AimbotFovColor
+   FovCircle.Thickness = 1
+   FovCircle.Filled = false
+   FovCircle.Transparency = 1
+   if Settings.Aimlock and Settings.Aiming then
+   local closestChar = getClosestPlayer()
+   if closestChar ~= nil then
+   if isInFirstPerson(Player.Character) or not Settings.FirstPersonOnly then
+   local AimCFrame = CFrame.new(CurCamera.CFrame.Position, closestChar.Position)
+   CurCamera.CFrame = CurCamera.CFrame:Lerp(AimCFrame, Settings.AimbotSpeed)
+         end
+      end
+   end
+end)
+
+-- // Silent Aim
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+    local Method = getnamecallmethod()
+    local Arguments = {...}
+    local self = Arguments[1]
+    if Settings.Silent and self == workspace and not checkcaller() then
+    if Method == "Raycast" then
+    if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
+    local A_Origin = Arguments[2]
+
+    local HitPart = getClosestPlayer()
+    if HitPart then
+    Arguments[3] = getDirection(A_Origin, HitPart.Position)
+
+    return oldNamecall(unpack(Arguments))
+                end
+            end
+        end
+    end
+    return oldNamecall(...)
+end))
+
+-- // Triggerbot
+RunService.RenderStepped:Connect(function()
+    if Settings.TriggerBot then
+	if (Mouse.Target.Parent:FindFirstChildOfClass("Humanoid") or Mouse.Target.Parent.Parent:FindFirstChildOfClass("Humanoid")) then
+    if (Mouse.Target.Parent.Name or Mouse.Target.Parent.Parent.Name) ~= Player.Name then
+	local Humanoid = Mouse.Target.Parent:FindFirstChildOfClass("Humanoid") or Mouse.Target.Parent.Parent:FindFirstChildOfClass("Humanoid")
+	if Humanoid.Health >= 1 then
+	mouse1press()
+	task.wait(Settings.TriggerBotDelay)
+    mouse1release()
+             end
+          end
+	   end
+    end
+end)
+
+--// Spinbot
+RunService.RenderStepped:Connect(function()
+    if Settings.Spinbot then
+    if not Settings.VelocityS then 
+    local Character = Player.Character
+    Character:FindFirstChild("HumanoidRootPart").CFrame = Character:FindFirstChild("HumanoidRootPart").CFrame * CFrame.Angles(0, math.rad(Settings.Spinbotspeed), 0)
+    if Player.Character.HumanoidRootPart:FindFirstChild("Spinning") then
+    Player.Character.HumanoidRootPart:FindFirstChild("Spinning"):Destroy()
+    end
+    elseif Settings.VelocityS then
+    if not Player.Character.HumanoidRootPart:FindFirstChild("Spinning") then
+	local Spin = Instance.new("BodyAngularVelocity")
+	Spin.Name = "Spinning"
+	Spin.Parent = Player.Character.HumanoidRootPart
+	Spin.MaxTorque = Vector3.new(0, math.huge, 0)
+	Spin.AngularVelocity = Vector3.new(0,Settings.Spinbotspeed,0)
+        end
+    end
+    elseif not Settings.Spinbot then
+    if Player.Character.HumanoidRootPart:FindFirstChild("Spinning") then
+    Player.Character.HumanoidRootPart:FindFirstChild("Spinning"):Destroy()
+       end
+    end
+end)
+
+-- // Anti Fling
+RunService.RenderStepped:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+	if player ~= Player and Player.Character then
+    if player.Character then
+	for _, v in pairs(player.Character:GetDescendants()) do
+	if v:IsA("BasePart") then
+	v.CanCollide = Settings.AntiFling
+                    end
+				end
+			end
+		end
+	end
+end)
+
+-- // Break Velocity
+RunService.RenderStepped:Connect(function()
+    if Settings.BreakVelocity then
+    local V3 = Vector3.new(0, 0, 0)
+    for _, v in ipairs(Player.Character:GetDescendants()) do
+    if v:IsA("BasePart") then
+    v.Velocity, v.RotVelocity = V3, V3
+           end
+        end
+    end
+end)
+
+-- // CFWalk
+RunService.RenderStepped:Connect(function(Delta)
+    local Character = Player.Character
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    if Humanoid.MoveDirection.Magnitude > 0 then
+    Character:TranslateBy(Humanoid.MoveDirection * Settings.CFWalk * Delta * 10)
+    end
+end)
+-- // Config
+local MenuGroup = Tabs['Config']:AddLeftGroupbox('Menu')
+MenuGroup:AddButton('Unload', function() Library:Unload() end)
+MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'Insert', NoUI = true, Text = 'Menu keybind' })
+
+Library.ToggleKeybind = Options.MenuKeybind
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({'MenuKeybind'})
+
+ThemeManager:SetFolder(ScriptName..'/Configs')
+SaveManager:SetFolder(ScriptName..'/Configs')
+SaveManager:BuildConfigSection(Tabs['Config'])
+ThemeManager:ApplyToTab(Tabs['Config'])
+SaveManager:LoadAutoloadConfig()
