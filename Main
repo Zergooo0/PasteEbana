@@ -1016,7 +1016,9 @@ end)
 RunService.RenderStepped:Connect(function()
     if Settings.PixelSurf then
     if Checks.PixelSurf then
+    if not Settings.Silent then
     PixelSurf()
+          end
        end
     end
 end)
