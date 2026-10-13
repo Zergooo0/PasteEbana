@@ -838,8 +838,10 @@ for _, v in pairs(Players:GetPlayers()) do
 end
 
 Players.PlayerAdded:Connect(function(v)
+    v.CharacterAdded:Connect(function()
     task.delay(1, function()
     coroutine.wrap(ESP)(v)
+        end)
     end)
 end)
 
