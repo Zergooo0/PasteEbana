@@ -8,8 +8,6 @@ local ScriptName = "PIZDEC HOOK"
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 -- // Variables
 local CurCamera = workspace.CurrentCamera
@@ -20,13 +18,15 @@ local GetPlayers = Players.GetPlayers
 local GetMouseLocation = UIS.GetMouseLocation
 local WorldToScreen = CurCamera.WorldToScreenPoint
 local WorldToViewport = CurCamera.WorldToViewportPoint
-local GetPartsObscuringTarget = CurCamera.GetPartsObscuringTarget
 local FovCircle = Drawing.new("Circle")
+local oldNamecall = nil
+local State
+local LastState
+local LastCF
 
 -- // Tables
 local Settings = {
     Aimlock = false;
-    Aiming = false;
     Silent = false;
     FirstPersonOnly = false;
     TriggerBot = false;
@@ -54,13 +54,36 @@ local Settings = {
     Bypass = false;
     BreakVelocity = false;
     AntiFling = false;
+    EdgeJump = false;
+    EdgeBug = false;
+}
+
+local Checks = {
+    Aiming = false;
+    EdgeJump = false;
+    EdgeBug = false;
+    PixelSurf = false;
+}
+
+local Keybinds = {
+    EdgeBug = Enum.KeyCode.LeftAlt;
+    EdgeJump = Enum.KeyCode.X;
+}
+
+local SoundIDS = {
+    None = "rbxassetid://0";
+    Coin = "rbxassetid://139603854451378";
+    Gamesense = "rbxassetid://94204395881101";
+    Rust = "rbxassetid://138750331387064";
+    Osu = "rbxassetid://123941247147792";
+    Pop = "rbxassetid://102822111971881";
 }
 
 local ExpectedArguments = {
     Raycast = {
-        ArgCountRequired = 3,
-        Args = {
-            "Instance", "Vector3", "Vector3", "RaycastParams"
+    ArgCountRequired = 3,
+    Args = {
+    "Instance", "Vector3", "Vector3", "RaycastParams"
         }
     }
 }
@@ -70,6 +93,11 @@ loaded_Sound.Volume = 1
 loaded_Sound.Looped = false
 loaded_Sound.SoundId = "rbxassetid://139603854451378"
 loaded_Sound:Play()
+
+local EdgeBug_Sound = Instance.new("Sound", game:GetService("SoundService"))
+EdgeBug_Sound.Volume = 1
+EdgeBug_Sound.Looped = false
+EdgeBug_Sound.SoundId = "rbxassetid://0"
 
 local Window = Library:CreateWindow({
     Title = ScriptName,
@@ -95,6 +123,8 @@ local WorldRGB = Tabs.Visuals:AddRightGroupbox('World')
 local LuaRGB = Tabs.Config:AddRightGroupbox('Lua')
 local OtherRGB = Tabs.Misc:AddRightGroupbox('Other')
 local MovementLGB = Tabs.Misc:AddLeftGroupbox('Movement')
+local KeybindsRGB = Tabs.Misc:AddRightGroupbox('Keybinds')
+local SoundsLGB = Tabs.Misc:AddLeftGroupbox("Sounds")
 
 -- // Combat
 AimLGB:AddToggle('Aimlock', {
@@ -415,6 +445,21 @@ OtherRGB:AddButton({
     DoubleClick = false,
 })
 
+MovementLGB:AddToggle('EdgeBug', {
+    Text = 'Edge Bug',
+    Default = Settings.EdgeBug,
+    Callback = function(Value)
+    Settings.EdgeBug = Value
+    end
+})
+
+MovementLGB:AddToggle('EdgeJump', {
+    Text = 'Edge Jump',
+    Default = Settings.EdgeJump,
+    Callback = function(Value)
+    Settings.EdgeJump = Value
+    end
+})
 
 MovementLGB:AddSlider('CFWalk', {
     Text = 'CFrame Walk',
@@ -425,6 +470,42 @@ MovementLGB:AddSlider('CFWalk', {
     Compact = false,
     Callback = function(Value)
     Settings.CFWalk = Value
+    end
+})
+
+KeybindsRGB:AddLabel('Edge Bug'):AddKeyPicker('KeyPicker', {
+    Default = 'LeftAlt',
+    SyncToggleState = false,
+    Mode = 'Hold',
+    Text = 'EJBAH',
+    NoUI = false,
+    Callback = function(Value)
+    end,
+    ChangedCallback = function(New)
+    Keybinds.EdgeBug = New
+    end
+})
+
+KeybindsRGB:AddLabel('Edge Jump'):AddKeyPicker('KeyPicker', {
+    Default = 'X',
+    SyncToggleState = false,
+    Mode = 'Hold',
+    Text = 'EJBAH',
+    NoUI = false,
+    Callback = function(Value)
+    end,
+    ChangedCallback = function(New)
+    Keybinds.EdgeJump = New
+    end
+})
+
+SoundsLGB:AddDropdown('EdgeBugSound', {
+    Values = {'None', 'Coin', "Gamesense", "Rust", "Osu", "Pop"},
+    Default = "None",
+    Multi = false,
+    Text = 'Edge Bug',
+    Callback = function(Value)
+    EdgeBug_Sound.SoundId = SoundIDS[Value]
     end
 })
 
@@ -458,15 +539,51 @@ end)
 -- // Functions
 UIS.InputBegan:Connect(function(key)
     if key.UserInputType == Enum.UserInputType.MouseButton2 then
-    Settings.Aiming = true
+    Checks.Aiming = true
     end
 end)
 
 UIS.InputEnded:Connect(function(key)
     if key.UserInputType == Enum.UserInputType.MouseButton2 then
-    Settings.Aiming = false
+    Checks.Aiming = false
     end
 end)
+
+local function EdgeBug()
+    local Character = Player.Character
+    local Humanoid = Character:WaitForChild("Humanoid")
+    if Character and Humanoid and Humanoid.RootPart then
+    LastState = State
+    State = Humanoid:GetState()
+    if LastState ~= State and State == Enum.HumanoidStateType.Freefall and LastState ~= Enum.HumanoidStateType.Jumping then
+    EdgeBug_Sound:Play()
+    local V3 = Vector3.new(0, -1, 0)
+    for _, v in ipairs(Player.Character:GetDescendants()) do
+    if v:IsA("BasePart") then
+    v.Velocity, v.RotVelocity = V3, V3
+             end
+          end
+       end
+    end
+end
+
+local function EdgeJump()
+    local Character = Player.Character
+    local Humanoid = Character:WaitForChild("Humanoid")
+    if Character and Humanoid and Humanoid.RootPart then
+    LastState = State
+    State = Humanoid:GetState()
+    if LastState ~= State and State == Enum.HumanoidStateType.Freefall and LastState ~= Enum.HumanoidStateType.Jumping then
+    Humanoid.RootPart.CFrame = LastCF
+    local JumpVelocity = Humanoid.JumpPower or Humanoid.JumpHeight
+    if Humanoid.JumpHeight or Humanoid.JumpPower then
+    JumpVelocity = math.sqrt(2 * workspace.Gravity * Humanoid.JumpHeight)
+    end
+    Humanoid.RootPart.Velocity = Vector3.new(Humanoid.RootPart.Velocity.X, JumpVelocity, Humanoid.RootPart.Velocity.Z)
+    end
+    LastCF = Humanoid.RootPart.CFrame
+    end
+end
 
 local function ValidateArguments(Args, RayMethod)
     local Matches = 0
@@ -650,7 +767,7 @@ RunService.RenderStepped:Connect(function()
    FovCircle.Thickness = 1
    FovCircle.Filled = false
    FovCircle.Transparency = 1
-   if Settings.Aimlock and Settings.Aiming then
+   if Settings.Aimlock and Checks.Aiming then
    local closestChar = getClosestPlayer()
    if closestChar ~= nil then
    if isInFirstPerson(Player.Character) or not Settings.FirstPersonOnly then
@@ -662,12 +779,12 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- // Silent Aim
-local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+    if Settings.Silent then
     local Method = getnamecallmethod()
     local Arguments = {...}
     local self = Arguments[1]
-    if Settings.Silent and self == workspace and not checkcaller() then
+    if self == workspace and not checkcaller() then
     if Method == "Raycast" then
     if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
     local A_Origin = Arguments[2]
@@ -677,6 +794,7 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
     Arguments[3] = getDirection(A_Origin, HitPart.Position)
 
     return oldNamecall(unpack(Arguments))
+                   end
                 end
             end
         end
@@ -749,6 +867,48 @@ RunService.RenderStepped:Connect(function()
     v.Velocity, v.RotVelocity = V3, V3
            end
         end
+    end
+end)
+
+-- // Edge Jump
+UIS.InputBegan:Connect(function(Input)
+    if Input.KeyCode == Keybinds.EdgeJump then
+    Checks.EdgeJump = true
+    end
+end)
+
+UIS.InputEnded:Connect(function(Input)
+    if Input.KeyCode == Keybinds.EdgeJump then
+    Checks.EdgeJump = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Settings.EdgeJump then
+    if Checks.EdgeJump then
+    EdgeJump()
+       end
+    end
+end)
+
+-- // Edge Bug
+UIS.InputBegan:Connect(function(Input)
+    if Input.KeyCode == Keybinds.EdgeBug then
+    Checks.EdgeBug = true
+    end
+end)
+
+UIS.InputEnded:Connect(function(Input)
+    if Input.KeyCode == Keybinds.EdgeBug then
+    Checks.EdgeBug = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Settings.EdgeBug then
+    if Checks.EdgeBug then
+    EdgeBug()
+       end
     end
 end)
 
