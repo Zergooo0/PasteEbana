@@ -20,6 +20,7 @@ local WorldToScreen = CurCamera.WorldToScreenPoint
 local WorldToViewport = CurCamera.WorldToViewportPoint
 local FovCircle = Drawing.new("Circle")
 local oldNamecall = nil
+local CurrentlySurfing = false
 local State
 local LastState
 local LastCF
@@ -50,12 +51,14 @@ local Settings = {
     GlobalShadows = true;
     Brightness = 2;
     CFWalk = 0;
+    PixelSurfSpeed = 50;
     ClockTime = 14;
     Bypass = false;
     BreakVelocity = false;
     AntiFling = false;
     EdgeJump = false;
     EdgeBug = false;
+    PixelSurf = false;
 }
 
 local Checks = {
@@ -68,6 +71,7 @@ local Checks = {
 local Keybinds = {
     EdgeBug = Enum.KeyCode.LeftAlt;
     EdgeJump = Enum.KeyCode.X;
+    PixelSurf = Enum.KeyCode.F;
 }
 
 local SoundIDS = {
@@ -88,16 +92,21 @@ local ExpectedArguments = {
     }
 }
 
-local loaded_Sound = Instance.new("Sound", game:GetService("SoundService"))
-loaded_Sound.Volume = 1
-loaded_Sound.Looped = false
-loaded_Sound.SoundId = "rbxassetid://139603854451378"
-loaded_Sound:Play()
+local Loaded_Sound = Instance.new("Sound", game:GetService("SoundService"))
+Loaded_Sound.Volume = 1
+Loaded_Sound.Looped = false
+Loaded_Sound.SoundId = "rbxassetid://139603854451378"
+Loaded_Sound:Play()
 
 local EdgeBug_Sound = Instance.new("Sound", game:GetService("SoundService"))
 EdgeBug_Sound.Volume = 1
 EdgeBug_Sound.Looped = false
 EdgeBug_Sound.SoundId = "rbxassetid://0"
+
+local PixelSurf_Sound = Instance.new("Sound", game:GetService("SoundService"))
+PixelSurf_Sound.Volume = 1
+PixelSurf_Sound.Looped = false
+PixelSurf_Sound.SoundId = "rbxassetid://0"
 
 local Window = Library:CreateWindow({
     Title = ScriptName,
@@ -453,11 +462,31 @@ MovementLGB:AddToggle('EdgeBug', {
     end
 })
 
+MovementLGB:AddToggle('PixelSurf', {
+    Text = 'Pixel Surf',
+    Default = Settings.PixelSurf,
+    Callback = function(Value)
+    Settings.PixelSurf = Value
+    end
+})
+
 MovementLGB:AddToggle('EdgeJump', {
     Text = 'Edge Jump',
     Default = Settings.EdgeJump,
     Callback = function(Value)
     Settings.EdgeJump = Value
+    end
+})
+
+MovementLGB:AddSlider('PSSpeed', {
+    Text = 'Pixel Surf Speed',
+    Default = Settings.PixelSurfSpeed,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+    Settings.PixelSurfSpeed = Value
     end
 })
 
@@ -486,11 +515,24 @@ KeybindsRGB:AddLabel('Edge Bug'):AddKeyPicker('KeyPicker', {
     end
 })
 
+KeybindsRGB:AddLabel('Pixel Surf'):AddKeyPicker('KeyPicker', {
+    Default = 'F',
+    SyncToggleState = false,
+    Mode = 'Hold',
+    Text = 'PX',
+    NoUI = false,
+    Callback = function(Value)
+    end,
+    ChangedCallback = function(New)
+    Keybinds.PixelSurf = New
+    end
+})
+
 KeybindsRGB:AddLabel('Edge Jump'):AddKeyPicker('KeyPicker', {
     Default = 'X',
     SyncToggleState = false,
     Mode = 'Hold',
-    Text = 'EJBAH',
+    Text = 'EJJump',
     NoUI = false,
     Callback = function(Value)
     end,
@@ -506,6 +548,16 @@ SoundsLGB:AddDropdown('EdgeBugSound', {
     Text = 'Edge Bug',
     Callback = function(Value)
     EdgeBug_Sound.SoundId = SoundIDS[Value]
+    end
+})
+
+SoundsLGB:AddDropdown('PixelSurfSound', {
+    Values = {'None', 'Coin', "Gamesense", "Rust", "Osu", "Pop"},
+    Default = "None",
+    Multi = false,
+    Text = 'Pixel Surf',
+    Callback = function(Value)
+    PixelSurf_Sound.SoundId = SoundIDS[Value]
     end
 })
 
@@ -564,6 +616,40 @@ local function EdgeBug()
              end
           end
        end
+    end
+end
+
+local function PixelSurf()
+    local RayParams = RaycastParams.new()
+    local Character = Player.Character
+    local Humanoid = Character:WaitForChild("Humanoid")
+    RayParams.FilterDescendantsInstances = {Character}
+
+    local Ray = workspace:Raycast(Humanoid.RootPart.Position, Humanoid.RootPart.CFrame.RightVector * 5, RayParams)
+    if not Ray then
+    Ray = workspace:Raycast(Humanoid.RootPart.Position, -Humanoid.RootPart.CFrame.RightVector * 5, RayParams)
+    end
+
+    if Ray and Ray.Instance and Ray.Instance.CanCollide then
+    CurrentlySurfing = true
+                
+    local MoveDir = Humanoid.MoveDirection
+    local Normal = Ray.Normal
+
+    local Dir = (MoveDir.Magnitude > 0) and MoveDir or Humanoid.RootPart.CFrame.LookVector
+                
+    local SurfDir = (Dir - (Dir:Dot(Normal) * Normal))
+    if SurfDir.Magnitude > 0 then
+    SurfDir = SurfDir.Unit
+    end
+
+    Humanoid.RootPart.AssemblyLinearVelocity = Vector3.new(
+    SurfDir.X * Settings.PixelSurfSpeed,
+    0,
+    SurfDir.Z * Settings.PixelSurfSpeed
+    )
+
+    PixelSurf_Sound:Play()
     end
 end
 
@@ -908,6 +994,27 @@ RunService.RenderStepped:Connect(function()
     if Settings.EdgeBug then
     if Checks.EdgeBug then
     EdgeBug()
+       end
+    end
+end)
+
+-- // PixelSurf
+UIS.InputBegan:Connect(function(Input)
+    if Input.KeyCode == Keybinds.PixelSurf then
+    Checks.PixelSurf = true
+    end
+end)
+
+UIS.InputEnded:Connect(function(Input)
+    if Input.KeyCode == Keybinds.PixelSurf then
+    Checks.PixelSurf = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Settings.PixelSurf then
+    if Checks.PixelSurf then
+    PixelSurf()
        end
     end
 end)
